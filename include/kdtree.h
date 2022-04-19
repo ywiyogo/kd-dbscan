@@ -38,7 +38,7 @@ class KdTree {
     if (root_)
       delete root_;
     if (hyp_rectangle_ != nullptr) {
-      FreeRectangle(hyp_rectangle_);
+      delete hyp_rectangle_;
       hyp_rectangle_ = nullptr;
     }
   }
@@ -58,39 +58,39 @@ class KdTree {
    */
   class KdNode {
    public:
-    KdNode() : ndata(nullptr), data(nullptr), direction(0), left(nullptr), right(nullptr) {}
-    explicit KdNode(uint32_t d) : ndata(nullptr), data(nullptr), direction(d), left(nullptr), right(nullptr) {}
+    KdNode(const T &pdata, const uint32_t pos)
+        : data(pdata), data_pos(pos), direction(0), left(nullptr), right(nullptr) {}
+    explicit KdNode(const T &pdata, const uint32_t pos, uint32_t d)
+        : data(pdata), data_pos(pos), direction(d), left(nullptr), right(nullptr) {}
     ~KdNode() {
       if (left != nullptr)
         delete left;
       if (right != nullptr)
         delete right;
-      delete[] ndata;
       // do not delete node->data
     }
-    void print(KdNode **n, std::string indent) {
-      if (*n != nullptr) {
-        printf("%sNode:\n", indent.c_str());
-        if (&(*n)->ndata) {
-          printf("  %sData: (%f, %f)\n", indent.c_str(), ndata[0], ndata[1]);
-          printf("  %sdirection: %d\n", indent.c_str(), direction);
-        }
-        indent = indent + "  ";
-        if (&(*n)->left) {
-          printf("%sLeft child: \n", indent.c_str());
-          print(&(*n)->left, indent);
-        }
-        if (&(*n)->right) {
-          printf("%sRight child: \n", indent.c_str());
-          print(&(*n)->right, indent);
-        }
-        return;
+    void print(KdNode &n, std::string indent) {
+      printf("%sNode:\n  %sData: ", indent.c_str());
+      for (size_t i = 0; i < n.data.size(); i++) {
+        printf("(%f, %f)\n", indent.c_str(), n.data[i]);
       }
+      printf("  %sdirection: %d\n", indent.c_str(), direction);
+
+      indent = indent + "  ";
+      if (n.left) {
+        printf("%sLeft child: \n", indent.c_str());
+        print(n.left, indent);
+      }
+      if (n.right) {
+        printf("%sRight child: \n", indent.c_str());
+        print(n.right, indent);
+      }
+      return;
     }
-    // A n-dim data value e.g. float[3]
-    float *ndata;
-    // Pointer of a single data structure
-    const T *data;
+    // Reference of a single data structure
+    const T &data;
+
+    uint32_t data_pos;
     // direction of the node in the kd-tree
     uint32_t direction;
     // Left child node
@@ -107,8 +107,8 @@ class KdTree {
    */
   struct HyperRectangle {
     int dim;
-    float *lower;
-    float *upper;
+    T lower;
+    T upper;
   };
 
   struct SearchNode {
@@ -130,12 +130,13 @@ class KdTree {
    * @param data_ptr pointer of the data value
    * @param data pointer of the data structure in the vector
    */
-  void InsertData(const float *data_ptr, const T *data) {
-    InsertNode(&root_, data_ptr, data, 0, dim_);
+  void InsertData(const size_t pos, const T &data) {
+    InsertNode(&root_, pos, data, 0, dim_);
     if (hyp_rectangle_ == 0) {
-      hyp_rectangle_ = CreateRectangle(dim_, data_ptr, data_ptr);
+      // initialize lower and uper with the first incoming data
+      hyp_rectangle_ = CreateRectangle(dim_, data, data);
     } else {
-      AddDataHypRectangle(hyp_rectangle_, data_ptr);
+      AddDataHypRectangle(hyp_rectangle_, data);
     }
   }
 
@@ -145,13 +146,8 @@ class KdTree {
    * @param dataset input dataset as vector
    */
   void AddDataset(const std::vector<T> &dataset) {
-    std::unique_ptr<float[]> data(new float[dim_]);
-
     for (size_t idx = 0; idx < dataset.size(); ++idx) {
-      for (uint32_t ndim = 0; ndim < dim_; ++ndim) {
-        data[ndim] = static_cast<float>(dataset.at(idx)[ndim]);
-      }
-      InsertData(data.get(), &dataset.at(idx));
+      InsertData(idx, dataset.at(idx));
     }
   }
 
@@ -163,23 +159,20 @@ class KdTree {
    * @param range search radius
    * @return NearestTree*
    */
-  NearestTree *FindNearestNodes(const T &data, float range) {
+  NearestTree FindNearestNodes(const T &ndata, float range) {
     int ret;
-    NearestTree *nearest_tree = new NearestTree();
+    NearestTree nearest_tree;
 
-    if (!(nearest_tree->search_list = new SearchNode)) {
-      delete nearest_tree;
-      return 0;
-    }
-    nearest_tree->search_list->next = 0;
-    nearest_tree->tree = this;
+    nearest_tree.search_list = new SearchNode();
 
-    if ((ret = FindNearestAsTree(root_, data, range, nearest_tree->search_list, 0, dim_)) == -1) {
-      Free(nearest_tree);
-      return 0;
+    nearest_tree.search_list->next = 0;
+    nearest_tree.tree = this;
+
+    if ((ret = FindNearestAsTree(root_, ndata, range, nearest_tree.search_list, 0, dim_)) == -1) {
+      return nearest_tree;
     }
-    nearest_tree->size = ret;
-    RewindTree(nearest_tree);
+    nearest_tree.size = ret;
+    RewindTree(&nearest_tree);
     return nearest_tree;
   }
 
@@ -194,17 +187,21 @@ class KdTree {
     delete nearest_tree;
   }
 
-  std::vector<const T *> SortDataByDistance(const T &from, float range) {
-    std::vector<const T *> result;
+  std::vector<T> SortDataByDistance(const T &from, float range) {
+    std::vector<T> result;
+    KdTree::NearestTree presults = FindNearestNodes(from, range);
 
-    KdTree::NearestTree *presults = FindNearestNodes(from, range);
-    std::unique_ptr<float[]> temp_data(new float[dim_]);
     while (!IsEnd(presults)) {
-      const T *data = GetDataPtr(presults, temp_data.get());
-      result.push_back(data);
+      T data;
+      GetData(presults, data);
+      if (from != data) {
+        result.push_back(data);
+      }
+
       /* go to the next entry */
-      NextTraversal(presults);
+      NextTraversal(&presults);
     }
+    sort(result.begin(), result.end());
     return result;
   }
 
@@ -227,16 +224,17 @@ class KdTree {
    * @param ndata n-dim data result
    * @return void*
    */
-  const T *GetDataPtr(NearestTree *nearest_tree, float *ndata) {
-    if (nearest_tree->search_iter) {
-      if (ndata) {
-        std::copy(nearest_tree->search_iter->node->ndata, nearest_tree->search_iter->node->ndata + dim_, ndata);
-      }
-      return nearest_tree->search_iter->node->data;
-    }
-    return 0;
+  void GetData(const NearestTree &nearest_tree, T &result) const {
+    if (nearest_tree.search_iter)
+      result = nearest_tree.search_iter->node->data;
   }
 
+  int32_t GetDataPos(const NearestTree &nearest_tree) const {
+    if (nearest_tree.search_iter)
+      return nearest_tree.search_iter->node->data_pos;
+    else
+      return -1;
+  }
   /**
    * @brief Check if end node is reached
    *
@@ -244,7 +242,7 @@ class KdTree {
    * @return true if the set iterator reaches the end after the last element
    * @return false if the set iterator doesn't reach the end of the last element
    */
-  bool IsEnd(NearestTree *nearest_tree) { return nearest_tree->search_iter == 0; }
+  bool IsEnd(const NearestTree &nearest_tree) const { return nearest_tree.search_iter == 0; }
 
  private:
   /**
@@ -256,20 +254,17 @@ class KdTree {
    * @param direction
    * @param dim
    */
-  void InsertNode(KdNode **node_ptr, const float *ndata, const T *data, uint32_t direction, int dim) {
+  void InsertNode(KdNode **node_ptr, const size_t pos, const T &ndata, uint32_t direction, int dim) {
     if (*node_ptr == nullptr) {
-      *node_ptr = new KdNode(direction);
-      (*node_ptr)->ndata = new float[dim];
-      std::copy(ndata, ndata + dim, (*node_ptr)->ndata);
-      (*node_ptr)->data = data;
+      *node_ptr = new KdNode(ndata, pos, direction);
       return;
     }
     uint32_t dir = (*node_ptr)->direction;
     uint32_t next_direction = (dir + 1) % dim;
-    if (ndata[dir] < (*node_ptr)->ndata[dir]) {
-      return InsertNode(&(*node_ptr)->left, ndata, data, next_direction, dim);
+    if (ndata[dir] < (*node_ptr)->data[dir]) {
+      return InsertNode(&(*node_ptr)->left, pos, ndata, next_direction, dim);
     }
-    return InsertNode(&(*node_ptr)->right, ndata, data, next_direction, dim);
+    return InsertNode(&(*node_ptr)->right, pos, ndata, next_direction, dim);
   }
 
   /**
@@ -291,10 +286,12 @@ class KdTree {
       return 0;
 
     float sq_dist = 0.;
-    for (int i = 0; i < dim; i++) {
-      sq_dist += Square(node->ndata[i] - ndata[i]);
+    for (int i = 0; i < ndata.size(); i++) {
+      float diff = static_cast<float>(node->data[i]) - static_cast<float>(ndata[i]);
+      sq_dist += pow(diff, 2);
     }
-    if (sq_dist <= Square(range)) {
+
+    if (sqrt(sq_dist) <= sqrt(pow(range, 2))) {
       if (InsertSearchNode(snode, node, ordered ? sq_dist : -1.0)) {
         added_res = 1;
       } else {
@@ -302,7 +299,7 @@ class KdTree {
       }
     }
 
-    dx = ndata[node->direction] - node->ndata[node->direction];
+    dx = ndata[node->direction] - node->data[node->direction];
 
     ret = FindNearestAsTree(dx <= 0.0 ? node->left : node->right, ndata, range, snode, ordered, dim);
     if (ret >= 0 && fabs(dx) < range) {
@@ -323,7 +320,7 @@ class KdTree {
    * @param hrectangle hyper rectangle
    * @param ndata n dimensional data
    */
-  void AddDataHypRectangle(HyperRectangle *rect, const float *ndata) {
+  void AddDataHypRectangle(HyperRectangle *rect, const T &ndata) {
     for (auto i = 0; i < rect->dim; i++) {
       if (ndata[i] < rect->lower[i]) {
         rect->lower[i] = ndata[i];
@@ -341,7 +338,7 @@ class KdTree {
    * @param ndata
    * @return float the result of the square distance
    */
-  T CalcSquareDistance(HyperRectangle *rect, const float *ndata) {
+  T CalcSquareDistance(HyperRectangle *rect, const T &ndata) {
     T result = 0;
 
     for (auto i = 0; i < rect->dim; i++) {
@@ -363,39 +360,20 @@ class KdTree {
    * @param max_data
    * @return HyperRectangle*
    */
-  HyperRectangle *CreateRectangle(int dim_, const float *min_data, const float *max_data) {
-    size_t size = dim_ * sizeof(float);
+  HyperRectangle *CreateRectangle(int dim, const T &low_data, const T &up_data) {
+    size_t size = dim * sizeof(float);
     KdTree::HyperRectangle *rect = 0;
 
     if (!(rect = new KdTree::HyperRectangle)) {
       return 0;
     }
 
-    rect->dim = dim_;
-    if (!(rect->lower = new float[size])) {
-      delete rect;
-      return 0;
-    }
-    if (!(rect->upper = new float[size])) {
-      delete[] rect->lower;
-      delete rect;
-      return 0;
-    }
-    std::copy(min_data, min_data + size, rect->lower);
-    std::copy(max_data, max_data + size, rect->upper);
+    rect->dim = dim;
+    rect->lower = low_data;
+
+    rect->upper = up_data;
 
     return rect;
-  }
-
-  /**
-   * @brief Free the hyper rectangle
-   *
-   * @param hrectangle input
-   */
-  void FreeRectangle(HyperRectangle *hrectangle) {
-    delete[] hrectangle->lower;
-    delete[] hrectangle->upper;
-    delete hrectangle;
   }
 
   /**
@@ -448,7 +426,7 @@ class KdTree {
     tree->search_list->next = 0;
   }
 
-  float Square(float x) { return static_cast<float>(x * x); }
+  float Square(float x) { return x * x; }
 
   // Root node
   KdNode *root_;

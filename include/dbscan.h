@@ -68,7 +68,6 @@ class DBSCAN {
       borderset_.clear();
       if (!visited_[idx]) {
         visited_[idx] = true;
-
         const std::vector<uint32_t> neighbors = FindNeigbors(dataset, idx);
         if (neighbors.size() < min_pts_) {
           continue;
@@ -118,21 +117,18 @@ class DBSCAN {
    */
   std::vector<uint32_t> FindNeigbors(const std::vector<T> &dataset, const uint32_t idx) const {
     std::vector<uint32_t> neighbors;
-    typename KdTree<T>::NearestTree *presults = kdtree_->FindNearestNodes(dataset[idx], epsilon_);
-    std::unique_ptr<float[]> temp_data(new float[datadim_]);
+    typename KdTree<T>::NearestTree presults = kdtree_->FindNearestNodes(dataset[idx], epsilon_);
 
     while (!kdtree_->IsEnd(presults)) {
-      const T *pch = kdtree_->GetDataPtr(presults, temp_data.get());
+      int32_t data_pos = kdtree_->GetDataPos(presults);
 
-      // calculate the difference of the addresses
-      uint32_t found_idx = (uint32_t)(pch - &dataset[0]);
+      if (idx != data_pos) {
+        neighbors.push_back(data_pos);
+      }
 
-      if (idx != found_idx)
-        neighbors.push_back(found_idx);
       /* go to the next entry */
-      kdtree_->NextTraversal(presults);
+      kdtree_->NextTraversal(&presults);
     }
-    kdtree_->Free(presults);
 
     return neighbors;
   }

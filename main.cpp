@@ -7,6 +7,7 @@
 
 #include <stdio.h>
 
+#include <array>
 #include <vector>
 
 #include "include/dbscan.h"
@@ -22,32 +23,32 @@ struct Data3D {
 };
 
 int main() {
-  std::vector<Data2D> data{
+  std::vector<std::array<int32_t, 2>> data{
       // clang-format off
-      Data2D{1037, 1046},
-      Data2D{1036, 1076},
-      Data2D{1035, 1074},
-      Data2D{1035, 1075},
-      Data2D{1034, 1075},
-      Data2D{1034, 1077},
-      Data2D{1033, 1075},
-      Data2D{1033, 1077},
-      Data2D{1032, 1075},
-      Data2D{1032, 1073},
-      Data2D{1093, 1099},
-      Data2D{103, 1100},
-      Data2D{104, 1101},
-      Data2D{105, 1101},
-      Data2D{107, 1103},
-      Data2D{102, 1104},
-      Data2D{105, 1105},
-      Data2D{102, 1105},
+      {1037, 1046},
+      {1036, 1076},
+      {1035, 1074},
+      {1035, 1075},
+      {1034, 1075},
+      {1034, 1077},
+      {1033, 1075},
+      {1033, 1077},
+      {1032, 1075},
+      {1032, 1073},
+      {1093, 1099},
+      {103, 1100},
+      {104, 1101},
+      {105, 1101},
+      {107, 1103},
+      {102, 1104},
+      {105, 1105},
+      {102, 1105},
       // clang-format on
   };
-  float cluster_range = 4.;
+  float cluster_eps = 4.;
   uint32_t min_cells = 3;
-  uint32_t kDim = 2;
-  auto dbscan = DBSCAN<Data2D>(cluster_range, min_cells);
+  const size_t kDim = 2;
+  auto dbscan = DBSCAN<std::array<int32_t, kDim>>(cluster_eps, min_cells);
 
   dbscan.Execute(data, kDim);
 
@@ -63,16 +64,18 @@ int main() {
   }
 
   printf("\n-----------------------------------------\n");
-  Data2D center{0., 0.};
-  printf("Get sorted data by distance from (%f, %f)\n", (&center)[0][0], (&center)[0][1]);
-  KdTree<Data2D> kdtree(2);
-  std::vector<Data2D> dataset{Data2D{7.0, 0.0}, Data2D{5.0, 0.0}, Data2D{3.0, 0.0}, Data2D{1.0, 0.0}};
-  float range = 6.9;
-  kdtree.AddDataset(dataset);
-  std::vector<const Data2D *> sorted_data = kdtree.SortDataByDistance(center, range);
+  std::array<uint32_t, kDim> center{0, 0};
+  float range = 9;
+  printf("Get sorted data by distance from (%d, %d) with range %.2f\n", (&center)[0][0], (&center)[0][1], range);
+  KdTree<std::array<uint32_t, kDim>> kdtree(2);
+  std::vector<std::array<uint32_t, kDim>> dataset{{1, 0}, {4, 0}, {7, 0}, {9, 0}, {10, 10}};
 
+  kdtree.AddDataset(dataset);
+
+  std::vector<std::array<uint32_t, kDim>> sorted_data = kdtree.SortDataByDistance(center, range);
+  printf("Size of result :%ld\n", sorted_data.size());
   for (auto data : sorted_data) {
-    printf("Data: %f, %f\n", data[0][0], data[0][1]);
+    printf("Sorted data: (%d, %d)\n", data[0], data[1]);
   }
   return 0;
 }
