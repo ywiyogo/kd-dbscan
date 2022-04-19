@@ -33,9 +33,8 @@ class DBSCAN {
    * @param eps epsilon or radian of a cluster
    * @param min_pts minimal number of points in epsilon radian
    */
-  DBSCAN(const float eps, const uint32_t min_pts)
-      : kdtree_(nullptr), epsilon_(eps), min_pts_(min_pts), datadim_(0) {
-    assert(min_pts_ > 0 && epsilon_ > 0.f);
+  DBSCAN(const float eps, const uint32_t min_pts) : kdtree_(nullptr), epsilon_(eps), min_pts_(min_pts), datadim_(0) {
+    assert(min_pts_ > 1 && epsilon_ > 0.f);
   }
 
   /**
@@ -79,6 +78,10 @@ class DBSCAN {
           AddDataIndex(idx);
           AddToCluster(idx, cluster_idx);
           ExpandCluster(dataset, cluster_idx, neighbors);
+          // recheck the cluster items
+          if (clusters.at(cluster_idx).size() < min_pts_) {
+            clusters.pop_back();
+          }
         }
       }
     }
@@ -113,26 +116,19 @@ class DBSCAN {
    * @param idx data index of the center
    * @return std::vector<uint32_t> indices of the neigbours
    */
-  std::vector<uint32_t> FindNeigbors(const std::vector<T> &dataset,
-                                     const uint32_t idx) const {
+  std::vector<uint32_t> FindNeigbors(const std::vector<T> &dataset, const uint32_t idx) const {
     std::vector<uint32_t> neighbors;
-
+    typename KdTree<T>::NearestTree *presults = kdtree_->FindNearestNodes(dataset[idx], epsilon_);
     std::unique_ptr<float[]> temp_data(new float[datadim_]);
-    for (uint32_t dim = 0; dim < datadim_; ++dim) {
-      temp_data[dim] = static_cast<float>(dataset[idx][dim]);
-    }
-
-    typename KdTree<T>::NearestTree *presults =
-        kdtree_->FindNearestNodes(temp_data.get(), epsilon_);
 
     while (!kdtree_->IsEnd(presults)) {
-      T *pch =
-          reinterpret_cast<T *>(kdtree_->GetDataPtr(presults, temp_data.get()));
+      const T *pch = kdtree_->GetDataPtr(presults, temp_data.get());
 
       // calculate the difference of the addresses
       uint32_t found_idx = (uint32_t)(pch - &dataset[0]);
 
-      if (idx != found_idx) neighbors.push_back(found_idx);
+      if (idx != found_idx)
+        neighbors.push_back(found_idx);
       /* go to the next entry */
       kdtree_->NextTraversal(presults);
     }
@@ -209,9 +205,7 @@ class DBSCAN {
    * @return true
    * @return false
    */
-  bool IsInBorderSet(const uint32_t idx) const {
-    return this->borderset_.end() != this->borderset_.find(idx);
-  }
+  bool IsInBorderSet(const uint32_t idx) const { return this->borderset_.end() != this->borderset_.find(idx); }
   // kd-tree
   KdTree<T> *kdtree_;
   // radius to the neigbour noded in a cluster
