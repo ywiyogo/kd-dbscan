@@ -122,7 +122,7 @@ class DBSCAN {
     while (!kdtree_->IsEnd(presults)) {
       int32_t data_pos = kdtree_->GetDataPos(presults);
 
-      if (idx != data_pos) {
+      if (data_pos > 0 && idx != static_cast<uint32_t>(data_pos)) {
         neighbors.push_back(data_pos);
       }
 

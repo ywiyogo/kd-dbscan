@@ -69,7 +69,7 @@ class KdTree {
         delete right;
       // do not delete node->data
     }
-    void print(KdNode &n, std::string indent) {
+    void print(const KdNode &n, std::string indent) {
       printf("%sNode:\n  %sData: ", indent.c_str());
       for (size_t i = 0; i < n.data.size(); i++) {
         printf("(%f, %f)\n", indent.c_str(), n.data[i]);
@@ -193,7 +193,7 @@ class KdTree {
 
     while (!IsEnd(presults)) {
       T data;
-      GetData(presults, data);
+      GetData(presults, &data);
       if (from != data) {
         result.push_back(data);
       }
@@ -224,9 +224,9 @@ class KdTree {
    * @param ndata n-dim data result
    * @return void*
    */
-  void GetData(const NearestTree &nearest_tree, T &result) const {
+  void GetData(const NearestTree &nearest_tree, T *result) const {
     if (nearest_tree.search_iter)
-      result = nearest_tree.search_iter->node->data;
+      *result = nearest_tree.search_iter->node->data;
   }
 
   int32_t GetDataPos(const NearestTree &nearest_tree) const {
@@ -286,7 +286,7 @@ class KdTree {
       return 0;
 
     float sq_dist = 0.;
-    for (int i = 0; i < ndata.size(); i++) {
+    for (size_t i = 0; i < ndata.size(); i++) {
       float diff = static_cast<float>(node->data[i]) - static_cast<float>(ndata[i]);
       sq_dist += pow(diff, 2);
     }
@@ -321,13 +321,10 @@ class KdTree {
    * @param ndata n dimensional data
    */
   void AddDataHypRectangle(HyperRectangle *rect, const T &ndata) {
-    for (auto i = 0; i < rect->dim; i++) {
-      if (ndata[i] < rect->lower[i]) {
-        rect->lower[i] = ndata[i];
-      }
-      if (ndata[i] > rect->upper[i]) {
-        rect->upper[i] = ndata[i];
-      }
+    if (ndata < rect->lower) {
+      rect->lower = ndata;
+    } else {
+      rect->upper = ndata;
     }
   }
 
@@ -361,7 +358,6 @@ class KdTree {
    * @return HyperRectangle*
    */
   HyperRectangle *CreateRectangle(int dim, const T &low_data, const T &up_data) {
-    size_t size = dim * sizeof(float);
     KdTree::HyperRectangle *rect = 0;
 
     if (!(rect = new KdTree::HyperRectangle)) {
