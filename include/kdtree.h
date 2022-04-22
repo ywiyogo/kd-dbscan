@@ -168,7 +168,7 @@ class KdTree {
     nearest_tree.search_list->next = 0;
     nearest_tree.tree = this;
 
-    if ((ret = FindNearestAsTree(root_, ndata, range, nearest_tree.search_list, 0, dim_)) == -1) {
+    if ((ret = FindNearestAsTree(root_, ndata, range, nearest_tree.search_list)) == -1) {
       return nearest_tree;
     }
     nearest_tree.size = ret;
@@ -201,7 +201,6 @@ class KdTree {
       /* go to the next entry */
       NextTraversal(&presults);
     }
-    sort(result.begin(), result.end());
     return result;
   }
 
@@ -271,14 +270,12 @@ class KdTree {
    * @brief find the nearest node
    *
    * @param node input node
-   * @param ndata
-   * @param range
-   * @param list
-   * @param ordered
-   * @param dim
+   * @param ndata n-dim data to be searched
+   * @param range distance range between the node and the n-dim data
+   * @param snode list of search node
    * @return int number of neigbors
    */
-  int FindNearestAsTree(KdNode *node, const T &ndata, float range, KdTree::SearchNode *snode, int ordered, int dim) {
+  int FindNearestAsTree(KdNode *node, const T &ndata, float range, KdTree::SearchNode *snode) {
     float dx = 0.;
     int ret, added_res = 0;
 
@@ -292,7 +289,7 @@ class KdTree {
     }
 
     if (sqrt(sq_dist) <= sqrt(pow(range, 2))) {
-      if (InsertSearchNode(snode, node, ordered ? sq_dist : -1.0)) {
+      if (InsertSearchNode(snode, node, sq_dist)) {
         added_res = 1;
       } else {
         return -1;
@@ -301,10 +298,10 @@ class KdTree {
 
     dx = ndata[node->direction] - node->data[node->direction];
 
-    ret = FindNearestAsTree(dx <= 0.0 ? node->left : node->right, ndata, range, snode, ordered, dim);
+    ret = FindNearestAsTree(dx <= 0.0 ? node->left : node->right, ndata, range, snode);
     if (ret >= 0 && fabs(dx) < range) {
       added_res += ret;
-      ret = FindNearestAsTree(dx <= 0.0 ? node->right : node->left, ndata, range, snode, ordered, dim);
+      ret = FindNearestAsTree(dx <= 0.0 ? node->right : node->left, ndata, range, snode);
     }
     if (ret == -1) {
       return -1;
@@ -373,11 +370,11 @@ class KdTree {
   }
 
   /**
-   * @brief Insert a search node
+   * @brief Insert a node to the search node by linking it
    *
-   * @param search_node
-   * @param node
-   * @param sq_dist
+   * @param search_node Target search node
+   * @param node input node
+   * @param sq_dist square distance
    * @return bool true if a node found
    */
   bool InsertSearchNode(SearchNode *search_node, KdNode *node, float sq_dist) {
