@@ -9,3 +9,5 @@ target_include_directories(kd-dbscan INTERFACE include/)
 add_executable(run_app main.cpp)
 set_target_properties(run_app PROPERTIES CXX_EXTENSIONS OFF)
 target_link_libraries(run_app PRIVATE kd-dbscan)
+
+add_subdirectory(tests)
