@@ -1,0 +1,31 @@
+# Use the official gcc image
+image: ubuntu:20.04
+
+before_script:
+    # Install build dependencies
+    - apt-get update && apt-get -y install cmake cppcheck
+
+stages:
+  - build
+  - code-analysis
+  - test
+
+build-job:
+    # Build the application
+    stage: build
+    script:
+        - mkdir build
+        - cd build
+        - cmake ..
+        - make
+
+code-analysis-job:
+    stage: code-analysis
+    script:
+        - cppcheck *.cpp --enable=all --language=c++ -I include
+
+test-job:
+    stage: test
+    script:
+        - cd build
+        - make test ARGS="--output-junit report.xml --output-on-failure"

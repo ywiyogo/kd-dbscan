@@ -10,4 +10,5 @@ add_executable(run_app main.cpp)
 set_target_properties(run_app PROPERTIES CXX_EXTENSIONS OFF)
 target_link_libraries(run_app PRIVATE kd-dbscan)
 
+enable_testing()    # it is enough to write this function once in this root file to include test cases in CTest
 add_subdirectory(tests)

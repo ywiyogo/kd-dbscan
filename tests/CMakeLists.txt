@@ -12,7 +12,6 @@ set(UNITTEST_SOURCES
     kdtree_test.cpp
     dbscan_test.cpp)
 
-enable_testing()
 add_executable(kdtree_test kdtree_test.cpp)
 add_executable(dbscan_test dbscan_test.cpp)
 include_directories(dbscan_test ${CMAKE_SOURCE_DIR}/include)
@@ -21,6 +20,6 @@ target_include_directories(kdtree_test INTERFACE ${CMAKE_SOURCE_DIR}/include/)
 target_link_libraries(kdtree_test gtest_main)
 target_link_libraries(dbscan_test gtest_main)
 
-include(GoogleTest)
-gtest_discover_tests(kdtree_test dbscan_test)
 
+add_test(NAME kdtree_test COMMAND kdtree_test)
+add_test(NAME dbscan_test COMMAND dbscan_test)
